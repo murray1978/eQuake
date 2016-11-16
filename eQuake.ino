@@ -13,6 +13,7 @@
 */
 
 byte mac[] = { 0x10, 0xBA, 0xD0, 0xBE, 0xEF, 0x00 };
+byte rip[] = {0, 0, 0, 0};
 
 IPAddress ip(192, 168, 2, 123);
 IPAddress gateway( 192, 168, 2, 1);
@@ -44,10 +45,12 @@ float accZ = 0.0f;
 float maxZ = 0.0f;
 float lastZ = 0.0f;
 
-float const blahh = (float)(3.3f / 1024);
-float const fudge = 1.65;
+float const blahh = (float)(3.3f / 1024); //blahh its a real value honestly.
+float const halfVolt = 1.65;
+float const gVolt = 0.8f;
 
 void setup() {
+
   Serial.begin(9600);
   analogReference(EXTERNAL);
   delay(50);
@@ -73,38 +76,57 @@ void readSensors() {
   voltX = (float)(blahh * rawX);
   voltY = (float)(blahh * rawY);
   voltZ = (float)(blahh * rawZ);
-
-  tempAcc = (float)(( voltX - fudge) / 0.8f );
+  
+  /*
+   * g = (V - 1.65) / 0.8
+   * Took to long to figure that bit out.
+   */
+  tempAcc = (float)(( voltX - halfVolt) / gVolt );
   accX = tempAcc - accX;
   (maxX < accX) ? maxX = accX : maxX = maxX;
 
-  tempAcc = (float)(( voltY - fudge ) / 0.8f );
+  tempAcc = (float)(( voltY - halfVolt ) / gVolt );
   accY = tempAcc - accY;
   (maxY < accY ) ? maxY = accX : maxY = maxY;
   
-  tempAcc = (float)(( voltZ - fudge ) / 0.8f );
+  tempAcc = (float)(( voltZ - halfVolt ) / gVolt );
   accZ = tempAcc - accZ;
   (maxZ < accZ ) ? maxZ = accZ : maxZ = maxZ;
   
 }
 
-//Could make this smarter.
+//char request[512];
+
+/*
+ * React to a clients HTTP GET request
+ * Simply checks if input[0] == '\n'
+ * Works OK with upto 3 clients so far.
+ */
 void clients() {
   char c;
+  //int i;
   EthernetClient client = server.available();
 
   if ( client ) {
-    Serial.println("new client");
-    bool blankLine = true;
-
+    Serial.print("new client ");
+    
+    client.getRemoteIP(rip);
+    for( int bcount = 0; bcount < 4; bcount++){
+      Serial.print(rip[bcount], DEC );
+      if( bcount < 3 ) Serial.print('.');
+    }
+    Serial.println();
+    
     while ( client.connected() ) {
       if ( client.available() ) {
 
-        c = client.read();
-
-        if ( c == '\n' && blankLine  ) {
-
+        /*
+         * Since this is a simple server we respone on ever <cr><lf>
+         * request
+         */
+        if( client.read() == '\r'){
           delay(10);
+          
           //respond
           Serial.println("responding");
           client.println("HTTP/1.1 200 OK");
@@ -142,12 +164,7 @@ void clients() {
           client.println("</body>");
           client.println("</html>");
           Serial.println("Done responding");
-        }
-        if ( c == '\n' ) {
-          blankLine = true;
-        }
-        else if ( c != '\r' ) {
-          blankLine = false;
+          break;
         }
       }
     }
